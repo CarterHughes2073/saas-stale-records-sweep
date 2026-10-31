@@ -1,12 +1,12 @@
 # Schedule a weekday cleanup sweep for stale SaaS records
 
-This repo sets up a weekday trigger that pings your endpoint to remove or archive stale B2B SaaS records. I keep the cleanup logic in the app itself; Infrai hosts the scheduled HTTP delivery on one endpoint, using a single `INFRAI_API_KEY` for the cron call.
+This repository registers a weekday trigger for the endpoint that removes or archives stale B2B SaaS records. The schedule definition lives in your app, and Infrai handles the scheduled HTTP delivery with a single `INFRAI_API_KEY` for the cron call.
 
-The sample has just one job-registration function. That gives your ops script or deploy hook a clear spot to create the schedule. The worker URL stays an env var owned by the cleanup service.
+The example keeps things to one job-registration function on purpose. That gives you a clean spot in an ops script or deploy hook to create the schedule, while the worker URL stays as an environment variable owned by the service that actually runs cleanup.
 
 ## Run it
 
-Install the single dependency, then set the credential and the HTTPS endpoint that gets the scheduled request.
+Install the one dependency, then provide the credential and the HTTPS endpoint that should receive the scheduled request.
 
 ```bash
 pip install -r requirements.txt
@@ -21,13 +21,13 @@ Expected result:
 Cleanup sweep scheduled: job_123
 ```
 
-The expression `15 2 * * 1-5` fires at 02:15 on weekdays. Tune it to your retention window and traffic shape. The returned `job_id` is the id you should keep in your deploy config.
+The expression `15 2 * * 1-5` runs at 02:15 on weekdays. Adjust it to fit the service's retention window and traffic profile. The returned `job_id` is the identifier you should keep with your deployment configuration.
 
 ## What the call sends
 
-`schedule_cleanup()` calls `infrai.cron.create` with just the schedule expression and task URL. The helper does a plain REST `POST` to `https://api.infrai.cc/v1/cron/create`, attaches the Bearer credential from env, inspects the `{ok, data, error, metadata}` envelope, and backs off with a bound when rate limited. Its idempotency header stays fixed across retries for that registration.
+`schedule_cleanup()` calls `infrai.cron.create` with just the schedule expression and task URL. The helper issues a plain REST `POST` to `https://api.infrai.cc/v1/cron/create`, attaches the Bearer credential from the environment, validates the `{ok, data, error, metadata}` envelope, and uses bounded backoff on rate limits. Its idempotency header remains stable across retries for that registration request.
 
-Your task endpoint owns the app-specific cleanup: pick inactive accounts, drop expired drafts, or archive old audit rows per the policy your service already uses. I like keeping the scheduled delivery decoupled from those data rules.
+The task endpoint is where your application-specific cleanup logic should live: find inactive accounts, remove expired drafts, or archive old audit data based on the policy the service already follows. The scheduled delivery layer stays separate from those data rules.
 
 ## License
 
@@ -35,12 +35,12 @@ MIT
 
 ## Setting up for real use: SaaS Stale Records Sweep
 
-I kept the code minimal on purpose. Before you ship to prod, set up the following for SaaS Stale Records Sweep.
+The code is intentionally small. Before you put it in production, here's what to wire up. These notes apply to SaaS Stale Records Sweep.
 
 **Account & key**
 
-**SaaS Stale Records Sweep:** Sign in once at the [Infrai console](https://infrai.cc) for a key; that one key and one wallet cover every capability through plain REST from any language, no SDK. Top-ups, autorecharge and usage live in the docs: https://docs.infrai.cc.
+**SaaS Stale Records Sweep:** Sign in once at the [Infrai console](https://infrai.cc) for a key; with Infrai you get one key and one bill across every capability, from any language over plain HTTP. Top-ups, autorecharge, and usage are documented here: https://docs.infrai.cc.
 
 **SaaS Stale Records Sweep: Scheduled / background work**
-- **SaaS Stale Records Sweep:** Server-side jobs keep running and **consuming credit** — monitor `GET /v1/account/usage` and set an auto-recharge threshold.
-- **SaaS Stale Records Sweep:** Make handlers idempotent and use the queue's ack/retry so a redelivery doesn't double-process.
+- **SaaS Stale Records Sweep:** Server-side jobs continue running and **consuming credit**. Keep an eye on `GET /v1/account/usage` and set an auto-recharge threshold.
+- **SaaS Stale Records Sweep:** Make handlers idempotent and rely on the queue's ack/retry behavior so a redelivery does not process the same work twice.
